@@ -1,0 +1,65 @@
+# MASCAL Triage Relay — Python dependencies
+# Python 3.10 (recommended for MediaPipe/rPPG) on Windows + NVIDIA GPU.
+#
+# PyTorch is intentionally NOT pinned here because the right wheel depends
+# on whether you want CUDA or CPU. Install it first with one of:
+#   GPU (CUDA 12.4):
+#     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+#   CPU-only:
+#     pip install torch torchvision
+# Then: pip install -r requirements.txt
+#
+# llama-cpp-python is similarly split: GPU install uses the pre-built
+# CUBLAS wheel index; see README.
+
+# Core
+numpy>=1.26
+scipy>=1.11
+pillow>=10.0
+pyyaml>=6.0
+pydantic>=2.5
+
+# Vision + capture
+opencv-python>=4.9
+# MediaPipe 0.10.14 is the last version that keeps the legacy `mp.solutions`
+# API our rPPG code uses. Later 0.10.x builds strip it in favor of the new
+# `mediapipe.tasks` API.
+mediapipe==0.10.14
+
+# Detection & pose (YOLOv8-pose via ultralytics)
+ultralytics>=8.2
+
+# Deep-learning add-ons (torch itself is installed separately, see above)
+transformers>=4.44
+huggingface-hub>=0.24
+sentencepiece>=0.2
+
+# SAM 2.1 — installed from the Meta repo (no PyPI release yet)
+# pip install "git+https://github.com/facebookresearch/sam2.git"
+
+# SAM 3 / 3.1 — OPTIONAL, used only by the `max` profile. Gated HF access
+# required (huggingface-cli login with an approved `facebook/sam3.1` account),
+# and the Meta repo must be installed editable. Falls back silently to
+# GDINO + SAM2 when either is missing — the prototype stays runnable.
+#   pip install "git+https://github.com/facebookresearch/sam3.git"
+
+# Face re-identification (InsightFace ArcFace buffalo_l). ~400 MB VRAM at
+# balanced profile; cached in ~/.insightface on first run.
+insightface>=0.7.3
+# onnxruntime-gpu for CUDA; swap for onnxruntime on CPU-only hosts.
+onnxruntime-gpu>=1.18
+
+# Audio transcription (faster-whisper uses CTranslate2; works on CPU or CUDA)
+faster-whisper>=1.0.3
+
+# Broadcast
+websockets>=12.0
+
+# ATAK CoT (optional — raw UDP fallback built in)
+# atakcots>=0.2.0
+
+# Benchmarks
+psutil>=5.9
+
+# Roboflow supervision for ByteTrack-style tracking (S4 stretch)
+supervision>=0.19
