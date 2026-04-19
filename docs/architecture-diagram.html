@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PULSE / MASCAL Architecture</title>
+    <style>
+      :root {
+        --bg: #0b1016;
+        --panel: #111821;
+        --panel-border: rgba(255, 255, 255, 0.06);
+        --text: #f5f7fb;
+        --muted: #a7afbd;
+        --chip: #1d2430;
+        --divider: #2b8fff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top, rgba(52, 80, 118, 0.22), transparent 34%),
+          linear-gradient(180deg, #0d1218 0%, #0a0f14 100%);
+        color: var(--text);
+        font-family: Inter, "Segoe UI", Arial, sans-serif;
+      }
+
+      .shell {
+        width: 100%;
+        padding: 26px;
+      }
+
+      .figure {
+        width: min(100%, 1160px);
+        margin: 0 auto;
+        padding: 20px 20px 16px;
+        border: 1px solid rgba(121, 141, 170, 0.2);
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(20, 26, 35, 0.96), rgba(12, 17, 24, 0.98));
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.38);
+      }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        text-align: center;
+        font-size: 11px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: #8f98a7;
+        font-weight: 700;
+      }
+
+      h1 {
+        margin: 0 0 24px;
+        text-align: center;
+        font-size: 22px;
+        line-height: 1.18;
+      }
+
+      .flow {
+        display: grid;
+        gap: 12px;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 104px 1fr;
+        gap: 14px;
+        align-items: start;
+        padding: 14px 16px 12px;
+        border-radius: 10px;
+        background: linear-gradient(180deg, rgba(23, 31, 41, 0.94), rgba(18, 25, 34, 0.98));
+        border: 1px solid var(--panel-border);
+      }
+
+      .step-index {
+        display: grid;
+        grid-template-columns: 7px 1fr;
+        gap: 11px;
+        align-items: stretch;
+        min-height: 92px;
+      }
+
+      .accent {
+        border-radius: 999px;
+      }
+
+      .index-card {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 12px 14px;
+        border-radius: 8px;
+        background: rgba(6, 8, 11, 0.62);
+      }
+
+      .layer-label {
+        margin-bottom: 6px;
+        font-size: 10px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: #798292;
+        font-weight: 700;
+      }
+
+      .layer-number {
+        font-size: 28px;
+        font-weight: 800;
+        line-height: 1;
+      }
+
+      .content h2 {
+        margin: 0 0 6px;
+        font-size: 18px;
+        line-height: 1.15;
+      }
+
+      .content p {
+        margin: 0;
+        max-width: 760px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.42;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .chip {
+        padding: 6px 10px;
+        border-radius: 6px;
+        background: var(--chip);
+        color: #d2d7df;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+      }
+
+      .connector {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 10px;
+      }
+
+      .connector::before {
+        content: "";
+        width: 14px;
+        height: 14px;
+        border-right: 3px solid var(--divider);
+        border-bottom: 3px solid var(--divider);
+        transform: rotate(45deg);
+        opacity: 0.9;
+      }
+
+      .pink { background: #ffacb9; color: #ffacb9; }
+      .orange { background: #ff9e52; color: #ff9e52; }
+      .yellow { background: #ffc93b; color: #ffc93b; }
+      .green { background: #17eb7a; color: #17eb7a; }
+      .blue { background: #4e9dff; color: #4e9dff; }
+      .grey { background: #d3d7de; color: #d3d7de; }
+
+      @media (max-width: 900px) {
+        .shell { padding: 14px; }
+        .figure { padding: 14px; }
+        .step { grid-template-columns: 1fr; }
+        .step-index { min-height: auto; }
+        .content p { max-width: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <section class="figure">
+        <p class="eyebrow">Architecture</p>
+        <h1>Top-to-bottom MASCAL relay flow</h1>
+
+        <div class="flow">
+          <article class="step">
+            <div class="step-index">
+              <div class="accent pink"></div>
+              <div class="index-card">
+                <div class="layer-label">Layer</div>
+                <div class="layer-number pink">01</div>
+              </div>
+            </div>
+            <div class="content">
+              <h2>Medic Input</h2>
+              <p>Lead medic starts a scan, points the device at one casualty, and captures a short head-to-toe sweep.</p>
+              <div class="chips">
+                <span class="chip">Operator</span>
+                <span class="chip">Start / Stop scan</span>
+                <span class="chip">One victim at a time</span>
+              </div>
+            </div>
+          </article>
+          <div class="connector"></div>
+
+          <article class="step">
+            <div class="step-index">
+              <div class="accent orange"></div>
+              <div class="index-card">
+                <div class="layer-label">Layer</div>
+                <div class="layer-number orange">02</div>
+              </div>
+            </div>
+            <div class="content">
+              <h2>Edge Capture</h2>
+              <p>The edge node owns the camera, buffers live frames, and keeps the current scene available for scan and broadcast flows.</p>
+              <div class="chips">
+                <span class="chip">OpenCV capture</span>
+                <span class="chip">Local GPU</span>
+                <span class="chip">Offline-first</span>
+              </div>
+            </div>
+          </article>
+          <div class="connector"></div>
+
+          <article class="step">
+            <div class="step-index">
+              <div class="accent yellow"></div>
+              <div class="index-card">
+                <div class="layer-label">Layer</div>
+                <div class="layer-number yellow">03</div>
+              </div>
+            </div>
+            <div class="content">
+              <h2>Perception</h2>
+              <p>Person detection, face re-ID, wound localization, blood pooling, rPPG, and transcript capture run on-device against the live feed.</p>
+              <div class="chips">
+                <span class="chip">YOLOv8 pose</span>
+                <span class="chip">Grounding DINO</span>
+                <span class="chip">SAM 2 / SAM 3</span>
+                <span class="chip">InsightFace</span>
+                <span class="chip">Whisper</span>
+              </div>
+            </div>
+          </article>
+          <div class="connector"></div>
+
+          <article class="step">
+            <div class="step-index">
+              <div class="accent green"></div>
+              <div class="index-card">
+                <div class="layer-label">Layer</div>
+                <div class="layer-number green">04</div>
+              </div>
+            </div>
+            <div class="content">
+              <h2>Medical Reasoning</h2>
+              <p>The scan engine aggregates findings into MARCH, SALT, priority, timers, and MIST-style handoff context.</p>
+              <div class="chips">
+                <span class="chip">MARCH</span>
+                <span class="chip">SALT</span>
+                <span class="chip">P1-P5 queue</span>
+                <span class="chip">MIST</span>
+              </div>
+            </div>
+          </article>
+          <div class="connector"></div>
+
+          <article class="step">
+            <div class="step-index">
+              <div class="accent blue"></div>
+              <div class="index-card">
+                <div class="layer-label">Layer</div>
+                <div class="layer-number blue">05</div>
+              </div>
+            </div>
+            <div class="content">
+              <h2>Scan Record</h2>
+              <p>A frozen casualty record is created with wound tags, body locations, face crop, frame crop, transcript, and audit metadata.</p>
+              <div class="chips">
+                <span class="chip">Scan record</span>
+                <span class="chip">Keywords</span>
+                <span class="chip">Face thumbnail</span>
+                <span class="chip">Audit trail</span>
+              </div>
+            </div>
+          </article>
+          <div class="connector"></div>
+
+          <article class="step">
+            <div class="step-index">
+              <div class="accent grey"></div>
+              <div class="index-card">
+                <div class="layer-label">Layer</div>
+                <div class="layer-number grey">06</div>
+              </div>
+            </div>
+            <div class="content">
+              <h2>Relay and UI</h2>
+              <p>The edge node broadcasts snapshots and scan events to the receiver dashboard so follow-on medics can treat by priority.</p>
+              <div class="chips">
+                <span class="chip">HTTP dashboard</span>
+                <span class="chip">WebSocket stream</span>
+                <span class="chip">Shared queue</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>

@@ -2,9 +2,13 @@
 
 > A perception relay worn by a lead medic that auto-captures per-victim context, builds a scene map, triages each patient to TCCC/SALT standards, and broadcasts a live casualty dashboard into ATAK — all running offline on commodity edge hardware.
 
-**Hackathon problem statements addressed:** Meta #15 (MASCAL AI perception) & Meta #16 (Edge Inference)
+**Hackathon problem statements addressed:** Meta #15 (MASCAL AI perception)
 
 See `MASCAL_Implementation_Plan.md` for the full design document.
+
+## Architecture overview
+
+![Top-to-bottom MASCAL relay flow](docs/images/architecture-flow.png)
 
 ---
 

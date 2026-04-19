@@ -1844,11 +1844,19 @@ input[type="text"]:focus {
 
 .arch-layout {
   display: block;
+  width: min(100%, 1120px);
+  margin: 0 auto;
+}
+
+.architecture-panel .demo-hero.compact {
+  text-align: center;
+  justify-items: center;
 }
 
 .arch-main-column {
   display: grid;
   gap: var(--sp-2);
+  width: 100%;
 }
 
 .arch-flow-card {
@@ -1974,6 +1982,9 @@ input[type="text"]:focus {
   margin-top: var(--sp-5);
   display: grid;
   gap: var(--sp-4);
+  width: min(100%, 1120px);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .arch-support-head {
