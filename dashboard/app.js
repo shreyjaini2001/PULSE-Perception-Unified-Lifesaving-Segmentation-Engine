@@ -32,6 +32,115 @@ const PRIORITY_COLORS = {
   P5: "#455a64",
 };
 
+const ARCHITECTURE_DIAGRAM_PROMPT = `Create a clean architecture diagram for the "MASCAL Triage Relay / PULSE" system using a strict top-to-bottom flow. Start with the lead medic and capture device at the top, then show edge capture and victim detection, wound / burn / blood localization, face re-identification, audio transcription, medical reasoning (MARCH, SALT, priority scoring, MIST handoff), scan-record generation, local broadcast services, and finally the receiver dashboard / follow-on medic workflow at the bottom. Label each layer with the exact models or modules used and show the direction of data movement between layers. Add a separate right-side tech-stack column grouped by frontend, backend, perception models, medical reasoning, transport, and storage. Keep the diagram presentation-demo ready, readable on one slide, and emphasize offline / edge-first operation.`;
+
+const ARCHITECTURE_FLOW = [
+  {
+    layer: "01",
+    title: "Medic Input",
+    summary: "Lead medic starts a scan, points the device at one casualty, and captures a short head-to-toe sweep.",
+    chips: ["Operator", "Start / Stop scan", "One victim at a time"],
+  },
+  {
+    layer: "02",
+    title: "Edge Capture",
+    summary: "The edge node owns the camera, buffers live frames, and keeps the current scene available for scan and broadcast flows.",
+    chips: ["OpenCV capture", "Local GPU", "Offline-first"],
+  },
+  {
+    layer: "03",
+    title: "Perception",
+    summary: "Person detection, face re-ID, wound localization, blood pooling, rPPG, and transcript capture run on-device against the live feed.",
+    chips: ["YOLOv8 pose", "Grounding DINO", "SAM 2 / SAM 3", "InsightFace", "Whisper"],
+  },
+  {
+    layer: "04",
+    title: "Medical Reasoning",
+    summary: "The scan engine aggregates findings into MARCH, SALT, priority, timers, and MIST-style handoff context.",
+    chips: ["MARCH", "SALT", "P1-P5 queue", "MIST"],
+  },
+  {
+    layer: "05",
+    title: "Scan Record",
+    summary: "A frozen casualty record is created with wound tags, body locations, face crop, frame crop, transcript, and audit metadata.",
+    chips: ["Scan record", "Keywords", "Face thumbnail", "Audit trail"],
+  },
+  {
+    layer: "06",
+    title: "Relay and UI",
+    summary: "The edge node broadcasts snapshots and scan events to the receiver dashboard so follow-on medics can treat by priority.",
+    chips: ["HTTP dashboard", "WebSocket stream", "Shared queue"],
+  },
+];
+
+const TECH_STACK_GROUPS = [
+  {
+    title: "Frontend",
+    items: ["Vanilla JavaScript ES modules", "HTML/CSS receiver dashboard", "WebSocket client", "Three.js body viewer"],
+  },
+  {
+    title: "Backend",
+    items: ["Python edge node", "Async broadcast server", "Threaded HTTP scan artifact serving", "In-memory scan store"],
+  },
+  {
+    title: "Perception Models",
+    items: ["YOLOv8 pose for casualty detection", "Grounding DINO for open-vocab wound proposals", "SAM 2 / SAM 3 for masks", "InsightFace buffalo_l for face re-ID", "faster-whisper for audio transcription"],
+  },
+  {
+    title: "Medical Reasoning",
+    items: ["Rule-based MARCH state", "Rule-based SALT triage", "Priority derivation", "Llama handoff summarization"],
+  },
+  {
+    title: "Transport and Storage",
+    items: ["WebSocket scene events", "HTTP JPEG scan artifacts", "Local audit logs", "Scan snapshots and timer events"],
+  },
+];
+
+const STACK_VISUALS = {
+  Frontend: { icon: "⌘", accent: "#4da3ff", blurb: "Receiver and command surfaces" },
+  Backend: { icon: "▣", accent: "#ff9e5e", blurb: "Edge orchestration and runtime" },
+  "Perception Models": { icon: "◎", accent: "#fbc02d", blurb: "Detection, segmentation, re-ID" },
+  "Medical Reasoning": { icon: "✚", accent: "#00e475", blurb: "Triage and handoff logic" },
+  "Transport and Storage": { icon: "⇄", accent: "#c4c7cd", blurb: "Relay, snapshots, audit trail" },
+};
+
+const API_SECTIONS = [
+  {
+    title: "HTTP Endpoints",
+    rows: [
+      ["GET /", "Serves the receiver dashboard shell from the local edge node."],
+      ["GET /api/scans/{scan_id}/frame.jpg", "Full captured frame for a completed scan."],
+      ["GET /api/scans/{scan_id}/crop.jpg", "Victim crop used in the scan detail view."],
+      ["GET /api/scans/{scan_id}/face.jpg", "Face thumbnail for scan cards when available."],
+    ],
+  },
+  {
+    title: "WebSocket Server → Client",
+    rows: [
+      ["hello", "Initial connection handshake with server clock and event sequence."],
+      ["snapshot", "Full scene state used to render the live dashboard."],
+      ["transcript", "Newest transcript fragment from the scene."],
+      ["profile / mode / scan_session", "Runtime status changes for profile, operating mode, and auto-scan session."],
+      ["scan_progress / scan_ready / scan_error", "Scan lifecycle events shown during head-to-toe capture."],
+      ["scan_recognized / victim_recognized", "Identity continuity events when a casualty is reattached."],
+      ["mist / audit", "Generated handoff payloads and audit trail notifications."],
+      ["timer_started / timer_milestone / scan_confirmed / scan_rejected", "Clinical timer and medic review feedback events."],
+    ],
+  },
+  {
+    title: "WebSocket Client → Server",
+    rows: [
+      ["resume", "Ask the server to replay missed buffered events after reconnect."],
+      ["confirm_tag", "Medic confirms the SALT triage tag."],
+      ["set_scenario / set_profile / set_mode", "Change scenario, profile, or operating mode from the UI."],
+      ["start_scan", "Run a manual scan for the selected casualty."],
+      ["start_auto_scan / stop_auto_scan", "Start or stop the one-at-a-time scan session flow."],
+      ["confirm_wound / reject_wound", "Medic validates or rejects a wound finding on a scan."],
+      ["generate_mist / note / start_timer", "Request handoff text, append medic notes, or start an intervention timer."],
+    ],
+  },
+];
+
 function humanizeRegion(id) {
   if (id == null || id === "unknown") return "";
   return String(id).replace(/_/g, " ");
@@ -521,6 +630,360 @@ function renderScene() {
       }
     }
   }
+}
+
+function wrapWords(text, maxLen = 40) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = "";
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length > maxLen && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+function architectureDiagramSvg() {
+  const nodeX = 88;
+  const nodeW = 760;
+  const nodeH = 140;
+  const gap = 28;
+  const rightX = 920;
+  const rightW = 408;
+  const accentPalette = ["#ffb3b3", "#ff9e5e", "#fbc02d", "#00e475", "#4da3ff", "#c4c7cd"];
+
+  const nodes = ARCHITECTURE_FLOW.map((step, idx) => {
+    const y = 104 + idx * (nodeH + gap);
+    const chipBaseX = nodeX + 196;
+    const summaryLines = wrapWords(step.summary, 50).slice(0, 3);
+    const summaryBaseY = y + 64;
+    const summaryBottomY = summaryBaseY + Math.max(0, (summaryLines.length - 1) * 18);
+    const chipY = summaryBottomY + 26;
+    const chips = step.chips.slice(0, 3).map((chip, chipIdx) => {
+      const x = chipBaseX + chipIdx * 176;
+      return `
+        <rect x="${x}" y="${chipY}" width="156" height="24" rx="4" fill="rgba(226,226,229,0.06)" />
+        <text x="${x + 10}" y="${chipY + 16}" fill="#c4c7cd" font-size="11" font-family="Inter, sans-serif" letter-spacing="0.08em">${escapeHtml(chip.toUpperCase())}</text>
+      `;
+    }).join("");
+    const textLines = summaryLines.map((line, lineIdx) => (
+      `<tspan x="${nodeX + 196}" y="${summaryBaseY + lineIdx * 18}">${escapeHtml(line)}</tspan>`
+    )).join("");
+    const arrow = idx < ARCHITECTURE_FLOW.length - 1
+      ? `
+        <line x1="${nodeX + nodeW / 2}" y1="${y + nodeH}" x2="${nodeX + nodeW / 2}" y2="${y + nodeH + gap - 10}" stroke="rgba(77,163,255,0.45)" stroke-width="3" stroke-dasharray="6 8"/>
+        <path d="M ${nodeX + nodeW / 2 - 8} ${y + nodeH + gap - 20} L ${nodeX + nodeW / 2} ${y + nodeH + gap - 10} L ${nodeX + nodeW / 2 + 8} ${y + nodeH + gap - 20}" fill="none" stroke="rgba(77,163,255,0.75)" stroke-width="3" />
+      `
+      : "";
+    return `
+      <g>
+        <rect x="${nodeX}" y="${y}" width="${nodeW}" height="${nodeH}" rx="8" fill="#161b22" />
+        <rect x="${nodeX}" y="${y}" width="10" height="${nodeH}" rx="8" fill="${accentPalette[idx % accentPalette.length]}" />
+        <rect x="${nodeX + 24}" y="${y + 24}" width="120" height="92" rx="6" fill="#0c0e10" />
+        <text x="${nodeX + 42}" y="${y + 52}" fill="rgba(196,199,205,0.55)" font-size="11" font-family="Inter, sans-serif" letter-spacing="0.18em">LAYER</text>
+        <text x="${nodeX + 42}" y="${y + 92}" fill="${accentPalette[idx % accentPalette.length]}" font-size="30" font-family="Space Grotesk, sans-serif" font-weight="700">${escapeHtml(step.layer)}</text>
+        <text x="${nodeX + 196}" y="${y + 42}" fill="#e2e2e5" font-size="22" font-family="Space Grotesk, sans-serif" font-weight="700">${escapeHtml(step.title)}</text>
+        <text fill="#c4c7cd" font-size="15" font-family="Inter, sans-serif">${textLines}</text>
+        ${chips}
+        ${arrow}
+      </g>
+    `;
+  }).join("");
+
+  const rails = TECH_STACK_GROUPS.map((group, idx) => {
+    const y = 144 + idx * 132;
+    const badgeWidth = Math.min(rightW - 36, Math.max(122, group.title.length * 8 + 34));
+    const items = group.items.slice(0, 3).map((item, itemIdx) => {
+      const lines = wrapWords(item, 34).slice(0, 2);
+      const baseY = y + 68 + itemIdx * 30;
+      const tspans = lines.map((line, lineIdx) => (
+        `<tspan x="${rightX + 20}" y="${baseY + lineIdx * 16}">${escapeHtml(line)}</tspan>`
+      )).join("");
+      return `<text fill="#c4c7cd" font-size="13" font-family="Inter, sans-serif">${tspans}</text>`;
+    }).join("");
+    return `
+      <g>
+        <rect x="${rightX}" y="${y}" width="${rightW}" height="122" rx="8" fill="#12161c" />
+        <rect x="${rightX + 18}" y="${y + 18}" width="${badgeWidth}" height="24" rx="4" fill="rgba(77,163,255,0.14)" />
+        <text x="${rightX + 30}" y="${y + 35}" fill="#4da3ff" font-size="11" font-family="Inter, sans-serif" letter-spacing="0.14em">${escapeHtml(group.title.toUpperCase())}</text>
+        ${items}
+      </g>
+    `;
+  }).join("");
+
+  return `
+    <svg class="arch-diagram-svg" viewBox="0 0 1360 1120" role="img" aria-label="Top to bottom system architecture diagram">
+      <defs>
+        <linearGradient id="archBg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="rgba(77,163,255,0.12)" />
+          <stop offset="60%" stop-color="rgba(10,13,17,0.0)" />
+          <stop offset="100%" stop-color="rgba(255,179,179,0.08)" />
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="1360" height="1120" rx="16" fill="#0c0e10" />
+      <rect x="0" y="0" width="1360" height="1120" rx="16" fill="url(#archBg)" />
+      <text x="88" y="54" fill="#e2e2e5" font-size="30" font-family="Space Grotesk, sans-serif" font-weight="700">PULSE / MASCAL Operational Flow</text>
+      <text x="88" y="82" fill="#8a95a5" font-size="14" font-family="Inter, sans-serif">Lead medic to edge perception to shared triage relay</text>
+      <text x="${rightX}" y="82" fill="#8a95a5" font-size="14" font-family="Inter, sans-serif">Tech stack bands</text>
+      <line x1="884" y1="108" x2="884" y2="1024" stroke="rgba(196,199,205,0.14)" stroke-width="2" stroke-dasharray="4 10" />
+      ${nodes}
+      ${rails}
+      <rect x="920" y="850" width="408" height="128" rx="8" fill="#161b22" />
+      <text x="940" y="882" fill="#4da3ff" font-size="11" font-family="Inter, sans-serif" letter-spacing="0.14em">EDGE-FIRST OPERATING POSTURE</text>
+      <text x="940" y="918" fill="#e2e2e5" font-size="18" font-family="Space Grotesk, sans-serif" font-weight="700">Local inference, local relay, local scan artifacts</text>
+      <text x="940" y="946" fill="#c4c7cd" font-size="13" font-family="Inter, sans-serif">Built to function in disconnected or bandwidth-constrained</text>
+      <text x="940" y="966" fill="#c4c7cd" font-size="13" font-family="Inter, sans-serif">environments, with shared receiver state and scan evidence.</text>
+    </svg>
+  `;
+}
+
+function renderDemoPage(view) {
+  const host = document.getElementById("demo-pages");
+  if (!host) return;
+  if (view === "architecture") {
+    host.innerHTML = `
+      <section class="demo-panel">
+        <div class="demo-hero">
+          <div>
+            <div class="panel-title">Architecture</div>
+            <h2>Top-to-bottom MASCAL relay flow</h2>
+            <p class="demo-copy">This view is optimized for demo narration: operator input at the top, edge perception and medical reasoning in the middle, and the receiver workflow at the bottom.</p>
+          </div>
+          <div class="demo-prompt-card">
+            <div class="panel-title">Improved Prompt</div>
+            <pre>${escapeHtml(ARCHITECTURE_DIAGRAM_PROMPT)}</pre>
+          </div>
+        </div>
+        <div class="arch-flow">
+          ${ARCHITECTURE_FLOW.map((step, idx) => `
+            <article class="arch-step">
+              <div class="arch-layer">${escapeHtml(step.layer)}</div>
+              <div class="arch-card">
+                <h3>${escapeHtml(step.title)}</h3>
+                <p>${escapeHtml(step.summary)}</p>
+                <div class="demo-chip-row">
+                  ${step.chips.map((chip) => `<span class="demo-chip">${escapeHtml(chip)}</span>`).join("")}
+                </div>
+              </div>
+              ${idx < ARCHITECTURE_FLOW.length - 1 ? `<div class="arch-arrow" aria-hidden="true">↓</div>` : ""}
+            </article>
+          `).join("")}
+        </div>
+      </section>`;
+    return;
+  }
+
+  if (view === "stack") {
+    host.innerHTML = `
+      <section class="demo-panel">
+        <div class="demo-hero compact">
+          <div>
+            <div class="panel-title">Tech Stack</div>
+            <h2>Layered stack, from capture to handoff</h2>
+            <p class="demo-copy">Use this page during the demo to explain what is running on-device, what handles clinical logic, and what powers the shared receiver workflow.</p>
+          </div>
+        </div>
+        <div class="stack-grid">
+          ${TECH_STACK_GROUPS.map((group) => `
+            <article class="stack-card">
+              <div class="panel-title">${escapeHtml(group.title)}</div>
+              <ul class="stack-list">
+                ${group.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+              </ul>
+            </article>
+          `).join("")}
+        </div>
+      </section>`;
+    return;
+  }
+
+  if (view === "apis") {
+    host.innerHTML = `
+      <section class="demo-panel">
+        <div class="demo-hero compact">
+          <div>
+            <div class="panel-title">APIs</div>
+            <h2>Receiver-facing interface inventory</h2>
+            <p class="demo-copy">This page lists the actual HTTP and WebSocket surfaces used by the edge node and dashboard in the current prototype.</p>
+          </div>
+        </div>
+        <div class="api-sections">
+          ${API_SECTIONS.map((section) => `
+            <article class="api-card">
+              <div class="panel-title">${escapeHtml(section.title)}</div>
+              <div class="api-table">
+                ${section.rows.map(([name, desc]) => `
+                  <div class="api-row">
+                    <code>${escapeHtml(name)}</code>
+                    <p>${escapeHtml(desc)}</p>
+                  </div>
+                `).join("")}
+              </div>
+            </article>
+          `).join("")}
+        </div>
+      </section>`;
+  }
+}
+
+function renderDemoPageModern(view) {
+  const host = document.getElementById("demo-pages");
+  if (!host) return;
+
+  if (view === "architecture") {
+    host.innerHTML = `
+      <section class="demo-panel architecture-panel">
+        <div class="demo-hero compact">
+          <div>
+            <div class="panel-title">Architecture</div>
+            <h2>Top-to-bottom MASCAL relay flow</h2>
+          </div>
+        </div>
+        <div class="arch-layout">
+          <div class="arch-main-column">
+            ${ARCHITECTURE_FLOW.map((step, idx) => `
+              <article class="arch-flow-card">
+                <div class="arch-accent" style="background:${["#ffb3b3", "#ff9e5e", "#fbc02d", "#00e475", "#4da3ff", "#c4c7cd"][idx % 6]}"></div>
+                <div class="arch-index-box">
+                  <span class="arch-index-label">Layer</span>
+                  <strong>${escapeHtml(step.layer)}</strong>
+                </div>
+                <div class="arch-copy-block">
+                  <div class="arch-step-title">${escapeHtml(step.title)}</div>
+                  <p class="arch-step-summary">${escapeHtml(step.summary)}</p>
+                  <div class="arch-chip-grid">
+                    ${step.chips.map((chip) => `<span class="arch-chip">${escapeHtml(chip)}</span>`).join("")}
+                  </div>
+                </div>
+              </article>
+              ${idx < ARCHITECTURE_FLOW.length - 1 ? `<div class="arch-connector" aria-hidden="true"><span></span></div>` : ""}
+            `).join("")}
+          </div>
+        </div>
+        <section class="arch-support-section">
+          <div class="arch-side-panel posture">
+            <div class="panel-title">Operating Posture</div>
+            <div class="arch-posture-title">Local inference, local relay, local scan artifacts</div>
+            <p class="arch-posture-copy">Designed for edge deployment with scan records, event relay, and receiver coordination kept available even in disconnected or bandwidth-constrained conditions.</p>
+          </div>
+        </section>
+      </section>`;
+    return;
+  }
+
+  if (view === "stack") {
+    host.innerHTML = `
+      <section class="demo-panel stack-panel">
+        <div class="demo-hero compact">
+          <div>
+            <div class="panel-title">Tech Stack</div>
+            <h2>Operational stack</h2>
+          </div>
+        </div>
+        <div class="stack-grid enhanced modernized">
+          ${TECH_STACK_GROUPS.map((group) => `
+            <article class="stack-card">
+              <div class="stack-card-head">
+                <div class="stack-icon-shell" style="--stack-accent:${STACK_VISUALS[group.title]?.accent || "#4da3ff"}">
+                  <span class="stack-icon">${escapeHtml(STACK_VISUALS[group.title]?.icon || "•")}</span>
+                </div>
+                <div class="stack-head-copy">
+                  <div class="panel-title">${escapeHtml(group.title)}</div>
+                  <div class="stack-subcopy">${escapeHtml(STACK_VISUALS[group.title]?.blurb || "")}</div>
+                </div>
+                <span class="stack-count">${group.items.length}</span>
+              </div>
+              <div class="stack-token-grid">
+                ${group.items.map((item, idx) => `<button type="button" class="stack-token" data-stack-token="${escapeHtml(item)}" style="transition-delay:${idx * 18}ms">${escapeHtml(item)}</button>`).join("")}
+              </div>
+            </article>
+          `).join("")}
+        </div>
+      </section>`;
+    return;
+  }
+
+  if (view === "apis") {
+    const totalApiRows = API_SECTIONS.reduce((sum, section) => sum + section.rows.length, 0);
+    host.innerHTML = `
+      <section class="demo-panel api-panel">
+        <div class="demo-hero compact">
+          <div>
+            <div class="panel-title">APIs</div>
+            <h2>Interface inventory</h2>
+          </div>
+        </div>
+        <div class="api-ribbon">
+          <div class="api-ribbon-card"><b>3</b><span>transport surfaces</span></div>
+          <div class="api-ribbon-card"><b>${totalApiRows}</b><span>documented operations</span></div>
+          <div class="api-ribbon-card"><b>Live</b><span>scan-session aware</span></div>
+        </div>
+        <div class="api-tabbar" role="tablist" aria-label="API sections">
+          ${API_SECTIONS.map((section, idx) => `<button type="button" class="api-tab${idx === 0 ? " active" : ""}" data-api-tab="${idx}">${escapeHtml(section.title)}</button>`).join("")}
+        </div>
+        <div class="api-sections">
+          ${API_SECTIONS.map((section, idx) => `
+            <article class="api-card api-card-${idx}${idx === 0 ? " active" : ""}" data-api-panel="${idx}">
+              <div class="panel-title">${escapeHtml(section.title)}</div>
+              <div class="api-table">
+                ${section.rows.map(([name, desc], rowIdx) => `
+                  <details class="api-row${rowIdx === 0 ? " open" : ""}" ${rowIdx === 0 ? "open" : ""}>
+                    <summary class="api-row-summary">
+                    <div class="api-route">
+                      <span class="api-badge">${escapeHtml((name.split(" ")[0] || "WS").toUpperCase())}</span>
+                      <code>${escapeHtml(name)}</code>
+                    </div>
+                    <div class="api-row-actions">
+                      <button type="button" class="api-copy-btn" data-copy="${escapeHtml(name)}">Copy</button>
+                    </div>
+                    </summary>
+                    <div class="api-row-body">
+                      <p>${escapeHtml(desc)}</p>
+                    </div>
+                  </details>
+                `).join("")}
+              </div>
+            </article>
+          `).join("")}
+        </div>
+      </section>`;
+    queueMicrotask(() => setupApiInteractions(host));
+  }
+}
+
+function setupApiInteractions(host) {
+  const tabs = [...host.querySelectorAll("[data-api-tab]")];
+  const panels = [...host.querySelectorAll("[data-api-panel]")];
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const idx = tab.dataset.apiTab;
+      tabs.forEach((t) => t.classList.toggle("active", t === tab));
+      panels.forEach((panel) => panel.classList.toggle("active", panel.dataset.apiPanel === idx));
+    });
+  });
+  host.querySelectorAll(".api-copy-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const text = btn.dataset.copy || "";
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        }
+        btn.textContent = "Copied";
+        setTimeout(() => { btn.textContent = "Copy"; }, 1200);
+      } catch {
+        btn.textContent = "Failed";
+        setTimeout(() => { btn.textContent = "Copy"; }, 1200);
+      }
+    });
+  });
 }
 
 const TAG_ORDER = ["RED", "YELLOW", "GREEN", "GREY", "BLACK", "UNTAGGED"];
@@ -1541,29 +2004,50 @@ document.getElementById("confirm-live-ok")?.addEventListener("click", () => {
 document.getElementById("modal-close").addEventListener("click", closeDetail);
 document.getElementById("detail-backdrop")?.addEventListener("click", closeDetail);
 
-// --- Docked nav tabs (Scene / Matrix / Patients) ---
-document.querySelectorAll(".nav-dock .tab").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".nav-dock .tab").forEach((b) => b.removeAttribute("aria-current"));
-    btn.setAttribute("aria-current", "page");
-    const view = btn.dataset.view;
-    document.body.dataset.view = view;
-    const side = document.querySelector("aside.side");
-    const mainPanel = document.querySelector("main.grid > section.panel");
-    if (view === "matrix") {
-      if (side) side.style.display = "none";
-      if (mainPanel) mainPanel.style.gridColumn = "1 / -1";
-      document.querySelector("main.grid").style.gridTemplateColumns = "1fr";
-    } else if (view === "patients") {
-      if (side) side.style.display = "none";
-      document.querySelector("main.grid").style.gridTemplateColumns = "1fr";
-      const firstP1 = scene.victims.find((x) => (x.priority || "P5") === "P1") || scene.victims[0];
-      if (firstP1) openDetail(firstP1.id);
-    } else {
-      if (side) side.style.display = "";
-      document.querySelector("main.grid").style.gridTemplateColumns = "";
-    }
+function setPrimaryView(view) {
+  document.querySelectorAll(".nav-dock .tab").forEach((btn) => {
+    if (btn.dataset.view === view) btn.setAttribute("aria-current", "page");
+    else btn.removeAttribute("aria-current");
   });
+  document.body.dataset.view = view;
+
+  const grid = document.querySelector("main.grid");
+  const side = document.querySelector("aside.side");
+  const mainPanel = document.querySelector("main.grid > section.panel");
+  const demoPages = document.getElementById("demo-pages");
+  const isSceneView = view === "scene" || view === "matrix" || view === "patients";
+
+  if (grid) grid.hidden = !isSceneView;
+  if (demoPages) demoPages.hidden = isSceneView;
+
+  if (!isSceneView) {
+    closeDetail();
+    if (side) side.style.display = "none";
+    if (grid) grid.style.gridTemplateColumns = "1fr";
+    if (mainPanel) mainPanel.style.gridColumn = "1 / -1";
+    renderDemoPageModern(view);
+    return;
+  }
+
+  if (view === "matrix") {
+    if (side) side.style.display = "none";
+    if (mainPanel) mainPanel.style.gridColumn = "1 / -1";
+    if (grid) grid.style.gridTemplateColumns = "1fr";
+  } else if (view === "patients") {
+    if (side) side.style.display = "none";
+    if (mainPanel) mainPanel.style.gridColumn = "1 / -1";
+    if (grid) grid.style.gridTemplateColumns = "1fr";
+    const firstP1 = scene.victims.find((x) => (x.priority || "P5") === "P1") || scene.victims[0];
+    if (firstP1) openDetail(firstP1.id);
+  } else {
+    if (side) side.style.display = "";
+    if (mainPanel) mainPanel.style.gridColumn = "";
+    if (grid) grid.style.gridTemplateColumns = "";
+  }
+}
+
+document.querySelectorAll(".nav-dock .tab").forEach((btn) => {
+  btn.addEventListener("click", () => setPrimaryView(btn.dataset.view || "scene"));
 });
 
 const nightCb = document.getElementById("night-mode");
@@ -1588,3 +2072,4 @@ function escapeHtml(s) {
 
 connect();
 renderScanSession();
+setPrimaryView("scene");
