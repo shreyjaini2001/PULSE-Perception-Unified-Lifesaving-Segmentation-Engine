@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MASCAL Triage Relay — Receiver</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"
+      crossorigin="anonymous"
+    ></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo-dot"></div>
+        <div>
+          <div class="title">MASCAL Triage Relay</div>
+          <div class="subtitle">Receiver dashboard · local edge only</div>
+        </div>
+      </div>
+
+      <div class="meta">
+        <div class="meta-item mode-toggle">
+          <span class="meta-label">Mode</span>
+          <div class="pill" id="mode-pill" role="tablist" aria-label="Operating mode">
+            <button type="button" class="pill-opt active" data-mode="scan">SCAN</button>
+            <button type="button" class="pill-opt" data-mode="live">LIVE</button>
+          </div>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Profile</span>
+          <select id="profile-select">
+            <option value="fast">Fast</option>
+            <option value="balanced" selected>Balanced</option>
+            <option value="max">Max (SAM 3.1)</option>
+          </select>
+        </div>
+        <div class="meta-item night-toggle">
+          <label class="night-label"
+            ><input type="checkbox" id="night-mode" /> Night vision</label
+          >
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Scenario</span>
+          <select id="scenario-select">
+            <option value="combat_blast">Combat / Blast</option>
+            <option value="civilian_mci">Civilian MCI</option>
+            <option value="fire_structure">Fire / Structure</option>
+            <option value="mva">Motor Vehicle</option>
+            <option value="cbrn">CBRN</option>
+          </select>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Connection</span>
+          <span id="conn-state" class="chip chip-neutral">connecting…</span>
+        </div>
+        <div class="meta-item scan-session-meta">
+          <span class="meta-label">Scan session</span>
+          <div class="scan-session-controls">
+            <button type="button" id="scan-session-btn" class="session-btn">Start scan</button>
+            <span id="scan-session-state" class="chip chip-neutral">idle</span>
+          </div>
+        </div>
+        <div class="meta-item priority-summary" id="priority-summary" title="P1–P5 priority matrix">
+          <span class="meta-label">Priority</span>
+          <span class="p-chip" data-p="P1">P1<span class="count" id="p-count-P1">0</span></span>
+          <span class="p-chip" data-p="P2">P2<span class="count" id="p-count-P2">0</span></span>
+          <span class="p-chip" data-p="P3">P3<span class="count" id="p-count-P3">0</span></span>
+          <span class="p-chip" data-p="P4">P4<span class="count" id="p-count-P4">0</span></span>
+          <span class="p-chip" data-p="P5">P5<span class="count" id="p-count-P5">0</span></span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Victims</span>
+          <span id="victim-count" class="chip chip-neutral">0</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Frame</span>
+          <span id="frame-count" class="chip chip-neutral">0</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="panel">
+        <div class="panel-title">Casualty list</div>
+        <div id="victim-grid" class="victim-grid"></div>
+        <div id="empty-state" class="empty">
+          No victims detected yet. Point the capture device at the scene.
+        </div>
+      </section>
+
+      <aside class="panel side">
+        <div class="panel-title">Scene map</div>
+        <canvas id="minimap-canvas" class="minimap-canvas" width="220" height="140"></canvas>
+
+        <div class="panel-title" style="margin-top: 18px">Live transcript</div>
+        <div id="transcript" class="transcript">—</div>
+
+        <div class="panel-title" style="margin-top: 18px">Event log</div>
+        <div id="event-log" class="event-log"></div>
+
+        <div class="panel-title" style="margin-top: 18px">Legend</div>
+        <div class="legend">
+          <span class="tag-chip tag-RED">Immediate</span>
+          <span class="tag-chip tag-YELLOW">Delayed</span>
+          <span class="tag-chip tag-GREEN">Minimal</span>
+          <span class="tag-chip tag-GREY">Expectant</span>
+          <span class="tag-chip tag-BLACK">Dead</span>
+        </div>
+        <p class="hint">
+          Grey / Black require explicit medic confirmation. AI never auto-emits these.
+        </p>
+      </aside>
+    </main>
+
+    <div id="victim-detail" class="detail-overlay hidden">
+      <div class="detail-backdrop" id="detail-backdrop"></div>
+      <div class="detail-panel" id="detail-panel">
+        <button type="button" class="modal-close" id="modal-close" aria-label="Close">×</button>
+        <div id="modal-content"></div>
+      </div>
+    </div>
+
+    <nav class="nav-dock" role="tablist" aria-label="Primary view">
+      <button type="button" class="tab" data-view="scene" aria-current="page">
+        <span class="ico">◎</span>Scene
+      </button>
+      <button type="button" class="tab" data-view="matrix">
+        <span class="ico">▦</span>Matrix
+      </button>
+      <button type="button" class="tab" data-view="patients">
+        <span class="ico">◧</span>Patients
+      </button>
+    </nav>
+
+    <div id="confirm-modal" class="detail-overlay hidden" data-for="live-mode">
+      <div class="detail-backdrop"></div>
+      <div class="confirm-panel">
+        <h2>Switch to LIVE triage mode?</h2>
+        <p>
+          Live mode updates wound, vital, and MARCH records on every frame. It
+          is fast but <b>loses context</b> when a victim leaves the field of view:
+          their injury and identity history will not persist.
+        </p>
+        <p>
+          <b>SCAN mode (recommended)</b> freezes a full assessment per victim on
+          demand and retains identity via face re-ID.
+        </p>
+        <div class="actions">
+          <button type="button" class="btn" id="confirm-live-cancel">Stay in SCAN</button>
+          <button type="button" class="btn primary" id="confirm-live-ok">Enable LIVE</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
