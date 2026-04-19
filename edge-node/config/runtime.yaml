@@ -1,0 +1,167 @@
+# Runtime configuration for the MASCAL edge node.
+# Override any field via command-line flags on main.py.
+
+device:
+  prefer: "auto"        # auto | cuda | mps | cpu
+  half_precision: true  # FP16 where supported
+
+capture:
+  source: 0             # 0 = default webcam, path or RTSP url otherwise
+  width: 1280
+  height: 720
+  target_fps: 10        # pipeline processes at this rate
+  mirror: false
+
+# Operating mode:
+#   "scan"  — manual per-victim capture-and-hold (default). Live video renders
+#             but records are only persisted when the lead medic taps
+#             "Scan this victim".
+#   "live"  — continuous wound/rPPG/MARCH update every frame (legacy).
+operating_mode: "scan"
+
+# Model-tier profile. The pipeline block below is overlaid with the selected
+# profile at startup (see profiles.<name> keys). --profile on the CLI wins.
+profile: "balanced"
+
+pipeline:
+  person_detector: "yolov8s-pose"
+  # Person gate: balance recall vs poster/lights (see person_bg_*).
+  person_confidence: 0.52
+  person_min_area_fraction: 0.02
+  person_min_visible_keypoints: 6
+  person_keypoint_conf_threshold: 0.32
+  person_min_bbox_short_edge_px: 48
+  person_max_aspect_wh: 1.18
+  person_min_kp_span_w: 0.20
+  person_min_kp_span_h: 0.26
+  person_min_shoulder_sep_diag: 0.11
+  person_suppress_contained_iou: 0.88
+  person_reject_ceiling_shorties: true
+  person_ceiling_top_frac: 0.10
+  person_ceiling_max_height_frac: 0.11
+  person_bg_suppress_enabled: true
+  person_bg_min_population: 2
+  person_bg_area_ratio_vs_max: 0.34
+  person_bg_max_confidence: 0.72
+  person_bg_isolated_iou_cap: 0.035
+  person_bg_isolated_area_ratio: 0.48
+  person_bg_isolated_max_confidence: 0.69
+
+  # SCAN mode OpenCV HUD: rotate one lightweight GDINO+SAM preview / N sec.
+  scan_wound_preview_enabled: true
+  scan_wound_preview_interval_seconds: 3.0
+  track_iou_threshold: 0.3
+  track_max_age_frames: 30
+
+  # Wound/blood segmentation. Overridden by the active profile.
+  use_grounding_dino: true
+  use_sam: true
+  gdino_model: "IDEA-Research/grounding-dino-base"
+  gdino_box_threshold: 0.3
+  gdino_text_threshold: 0.25
+  sam_model: "facebook/sam2-hiera-small"
+  # Body-gating: reject wound candidates whose mask doesn't overlap the
+  # SAM person silhouette (dilated by N px). Prevents red-wall false positives.
+  body_dilation_px: 18
+  min_body_overlap: 0.4
+  wound_debug_enabled: true
+  wound_debug_dir: "logs/wound_debug"
+  wound_demo_mode: false
+
+  # How often to re-run wound segmentation per victim in live mode.
+  wound_scan_interval_seconds: 1.0
+
+  # Face re-identification (InsightFace buffalo_l).
+  face_reid_enabled: true
+  face_reid_model: "buffalo_l"
+  face_reid_det_size: 640
+  face_reid_threshold: 0.45
+  face_reid_interval_seconds: 0.5
+
+  # rPPG
+  rppg_enabled: true
+  rppg_window_seconds: 10
+  rppg_min_confidence: 0.4
+
+  # Audio
+  audio_enabled: true
+  whisper_model: "small.en"
+  whisper_device: "auto"
+  whisper_compute_type: "float16"
+
+  # LLM (MIST card synthesis)
+  llm_enabled: true
+  llm_path: "models/llama-3.2-3b-instruct.gguf"
+  llm_n_ctx: 2048
+  llm_max_tokens: 256
+
+# ---------------------------------------------------------------------------
+# Tiered presets. `pipeline` values are overlaid with the selected profile's
+# fields at startup. Missing fields inherit from pipeline.
+# ---------------------------------------------------------------------------
+profiles:
+  fast:
+    person_detector: "yolov8s-pose"
+    gdino_model: "IDEA-Research/grounding-dino-tiny"
+    sam_model: "facebook/sam2-hiera-small"
+    whisper_model: "small.en"
+    llm_path: "models/llama-3.2-3b-instruct.gguf"
+    wound_backend: "gdino_sam2"
+
+  balanced:
+    person_detector: "yolov8m-pose"
+    gdino_model: "IDEA-Research/grounding-dino-base"
+    sam_model: "facebook/sam2-hiera-base-plus"
+    whisper_model: "small.en"
+    llm_path: "models/llama-3.2-3b-instruct.gguf"
+    wound_backend: "gdino_sam2"
+
+  max:
+    person_detector: "yolov8x-pose"
+    # Slightly looser recall than the global pipeline block (x-pose is strict).
+    person_confidence: 0.50
+    person_min_visible_keypoints: 6
+    person_min_kp_span_w: 0.19
+    person_min_kp_span_h: 0.25
+    person_max_aspect_wh: 1.20
+    scan_wound_preview_interval_seconds: 2.5
+    # When wound_backend == "sam3" the HF model id below is used by the
+    # facebookresearch/sam3 loader. Requires gated HF access and the sam3
+    # repo installed editable. Falls back silently to GDINO+SAM2 if missing.
+    sam3_version: "sam3.1"
+    sam3_hf_checkpoint: "facebook/sam3"
+    gdino_model: "IDEA-Research/grounding-dino-base"
+    sam_model: "facebook/sam2-hiera-large"
+    whisper_model: "medium.en"
+    # Same GGUF as `balanced` unless you add an 8B model locally (avoids rule-only MIST).
+    llm_path: "models/llama-3.2-3b-instruct.gguf"
+    wound_backend: "sam3"
+    # Precision knobs that only engage in `max` — see docs in
+    # pipeline/scan_engine.py:ScanEngine for the exact semantics.
+    scan_consensus_enabled: true
+    ensemble_enabled: true
+    anomaly_prior_enabled: true
+    # DINOv3 is gated on HF; public fallback below keeps the prior working offline.
+    anomaly_model: "facebook/dinov3-vitb16-pretrain-lvd1689m"
+    anomaly_model_fallbacks:
+      - "facebook/dinov2-base"
+
+broadcast:
+  ws_host: "0.0.0.0"
+  ws_port: 8081
+  http_host: "0.0.0.0"
+  http_port: 8080
+
+atak:
+  enabled: false
+  host: "192.168.1.50"
+  port: 4242
+  anchor_lat: 38.8895
+  anchor_lon: -77.0353
+
+scenario:
+  default: "combat_blast"
+
+logging:
+  audit_dir: "logs"
+  level: "INFO"

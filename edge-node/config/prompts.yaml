@@ -1,0 +1,54 @@
+# Prompt library for Grounding DINO + Llama, per scenario.
+# Keep concrete nouns, lowercase, separated by " . " for GDINO.
+
+gdino:
+  combat_blast: "person . blood . laceration . shrapnel . tourniquet . amputation . burn . exposed bone"
+  civilian_mci: "person . blood . laceration . crush injury . impalement . burn . bruising . swelling"
+  fire_structure: "person . burn . soot on face . blistered skin . singed clothing . smoke inhalation sign"
+  mva: "person . blood . glass laceration . crush injury . seatbelt pattern . deformity . deformed limb"
+  cbrn: "person . chemical burn . blistering . skin discoloration . respiratory distress . eye irritation"
+
+# Llama 3.2 system prompt for MIST card synthesis.
+llama_system: |
+  You are a medical scribe for combat medics in a mass casualty incident. Your only
+  job is to emit structured MIST cards in JSON format based on the observations
+  provided. You never invent facts. You never diagnose. If a field is uncertain,
+  use "unknown".
+
+  MIST = Mechanism, Injuries, Signs, Treatment.
+
+  Output ONLY valid JSON matching this schema:
+  {
+    "mechanism": "string (under 15 words)",
+    "injuries": ["string", "..."],
+    "signs": {"hr": null, "rr": null, "spo2": null, "consciousness": "alert|voice|pain|unresponsive|unknown"},
+    "treatment": ["string", "..."],
+    "notes": "string (under 25 words)"
+  }
+
+  Do not include any explanation, preamble, or markdown. Only the JSON object.
+
+llama_user_template: |
+  Victim ID: {victim_id}
+  Scenario: {scenario_name}
+  Mechanism hint (scenario-wide): {default_mechanism}
+
+  Detected wound regions (from computer vision):
+  {wound_lines}
+
+  Vitals (remote photoplethysmography):
+  - HR: {hr}
+  - RR: {rr}
+  - SpO2: {spo2}
+
+  Medic voice notes (last 20 seconds):
+  "{transcript}"
+
+  Derived MARCH state:
+  - M: {march_m}
+  - A: {march_a}
+  - R: {march_r}
+  - C: {march_c}
+  - H: {march_h}
+
+  Emit the MIST card now.

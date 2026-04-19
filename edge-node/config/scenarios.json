@@ -1,0 +1,52 @@
+{
+  "_notes": "GDINO prompts are engineered to avoid bare tokens like 'body', 'person', 'face' or 'head' — those prompt tokens are the #1 source of false-positive labels on clean skin. Every phrase must contain a visible-injury noun (blood, wound, burn, shrapnel, etc.).",
+
+  "combat_blast": {
+    "name": "Combat / Blast",
+    "description": "Blast-pattern injuries, shrapnel, amputations, tourniquets.",
+    "gdino_prompts": "visible blood on clothing . open bleeding wound . deep laceration . penetrating metal fragment . mangled extremity wound . visible burn injury . severe abrasion . road rash injury . exposed bone . tourniquet strap on limb . applied field dressing",
+    "triage_scheme": "TCCC_SALT",
+    "handoff_format": "9_line_medevac",
+    "default_mechanism": "blast injury",
+    "sort_priority": ["RED", "YELLOW", "GREEN", "GREY", "BLACK", "UNTAGGED"]
+  },
+  "civilian_mci": {
+    "name": "Civilian MCI",
+    "description": "Mass casualty in civilian context — crush, laceration, impalement.",
+    "gdino_prompts": "visible blood on clothing . open bleeding wound . deep laceration . severe abrasion . road rash injury . impaled object . crushed limb . visible burn injury . large bruise . deformed limb",
+    "triage_scheme": "SALT",
+    "handoff_format": "ems_pcr",
+    "default_mechanism": "mass casualty incident",
+    "sort_priority": ["RED", "YELLOW", "GREEN", "GREY", "BLACK", "UNTAGGED"]
+  },
+  "fire_structure": {
+    "name": "Fire / Structure",
+    "description": "Structure fire — burns, smoke inhalation, airway-first triage.",
+    "gdino_prompts": "visible burn injury . charred skin . heavy soot deposit . skin blister . singed clothing . full thickness burn . partial thickness burn",
+    "triage_scheme": "SALT",
+    "handoff_format": "ems_pcr",
+    "default_mechanism": "structure fire",
+    "airway_priority": true,
+    "estimate_burn_percent": true,
+    "sort_priority": ["RED", "YELLOW", "GREEN", "GREY", "BLACK", "UNTAGGED"]
+  },
+  "mva": {
+    "name": "Motor Vehicle Accident",
+    "description": "MVA — glass lacerations, crush, seatbelt patterns, deformities.",
+    "gdino_prompts": "visible blood on clothing . glass laceration wound . deep laceration . severe abrasion . road rash injury . crushed limb . seatbelt contusion . deformed limb . open bleeding wound",
+    "triage_scheme": "START",
+    "handoff_format": "ems_pcr",
+    "default_mechanism": "motor vehicle collision",
+    "sort_priority": ["RED", "YELLOW", "GREEN", "GREY", "BLACK", "UNTAGGED"]
+  },
+  "cbrn": {
+    "name": "CBRN",
+    "description": "Chemical/biological/radiological/nuclear — flag decon needs.",
+    "gdino_prompts": "chemical burn injury . skin blister . discolored skin lesion . respiratory distress sign . eye irritation sign . skin necrosis",
+    "triage_scheme": "CBRN",
+    "handoff_format": "ems_pcr",
+    "default_mechanism": "CBRN exposure",
+    "flag_decon": true,
+    "sort_priority": ["RED", "YELLOW", "GREEN", "GREY", "BLACK", "UNTAGGED"]
+  }
+}
